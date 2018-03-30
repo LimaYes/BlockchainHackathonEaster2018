@@ -2,7 +2,7 @@
 
 ## Prize
 
-Please for this repository and submit a link to your solution (along with the exact commit hash so we know what version to use) by Sun, 1st April 2018 11pm GMT time in the issues section. The solutions will be evaluated as stated below. The best submission will be awarded $500 worth of Bitcoin.
+Please fork this repository and submit a link to your solution (along with the exact commit hash so we know what version to use) by Sun, 1st April 2018 11pm GMT time in the issues section. The solutions will be evaluated as stated below. The best submission will be awarded $500 worth of Bitcoin.
 
 ## The Problem Statement
 
