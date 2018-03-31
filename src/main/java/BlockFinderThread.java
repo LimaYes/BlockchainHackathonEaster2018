@@ -11,6 +11,7 @@ public class BlockFinderThread implements Runnable {
     Date last = new Date();
     int min = 30;
     int max = 60;
+    double chance_for_quickblock = 0.15;
     int hittime = BlockFinderThread.randInt(min, max);
     static Random rand = new Random();
 
@@ -40,8 +41,14 @@ public class BlockFinderThread implements Runnable {
             if(seconds>=hittime){
                 last = new Date();
                 hittime = BlockFinderThread.randInt(min, max);
+                // make a quick one
+                if(rand.nextDouble()<chance_for_quickblock) hittime=2;
+
                 Blockchain.generateNewBlock();
                 Logger.getGlobal().info("new block generated, next hit in " + hittime + " s");
+
+                if(hittime==2)
+                    Logger.getGlobal().warning("QUICK BLOCK AHEAD!");
             }
             try {
                 Thread.sleep(100);

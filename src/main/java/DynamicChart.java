@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.util.logging.Logger;
 import javax.swing.JFrame;
 import javax.swing.JTabbedPane;
 import org.jfree.chart.ChartFactory;
@@ -37,15 +38,19 @@ public class DynamicChart {
          double averager = 0;
          int cntr = 0;
          Block tmp = b;
+         int totalduration = 0;
          while(cntr<5 && tmp!=null){
              cntr++;
-             averager += (tmp.number*60)/tmp.duration;
+             averager += tmp.number;
+             totalduration += tmp.duration;
              tmp = tmp.prevBlock;
          }
+         double txpersec = (((double)averager)*60)/((double)totalduration);
+         Logger.getGlobal().info("AVERAGE TX/SEC WAS " + txpersec + ", totalTx = " + averager + ", time = " + totalduration + " !!!!!!!!!!!!!!!!!!!!!!!!!!!!");
          if(cntr!=5)
              series2.add(index, 0);
          else
-             series2.add(index, averager/5);
+             series2.add(index, Math.min(25,txpersec));
      }
 
     private ChartPanel createPane() {
@@ -84,7 +89,7 @@ public class DynamicChart {
         return new ChartPanel(chart) {
             @Override
             public Dimension getPreferredSize() {
-                return new Dimension(800, 400);
+                return new Dimension(1600, 800);
             }
         };
     }
