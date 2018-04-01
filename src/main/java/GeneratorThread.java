@@ -73,6 +73,17 @@ public class GeneratorThread implements Runnable {
 
         while(true) {
 
+            // go silent between blocks 15 and 20
+            if(Blockchain.log.size()>=30 && Blockchain.log.size()<=40){
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+
+
+                }
+                continue;
+            }
+
             String guess = (new RandomString()).nextString();
             boolean check = Blockchain.checkWork(guess);
             if(check){
