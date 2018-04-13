@@ -1,3 +1,5 @@
+import javafx.util.Pair;
+
 import java.awt.*;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -16,7 +18,7 @@ class Block
     Block prevBlock = null;
 
     public Block() {
-        target = Long.MAX_VALUE / 100;
+        target = Long.MAX_VALUE / 10000;
     }
 
 }
@@ -69,7 +71,7 @@ public class Blockchain {
         Date now = new Date();
         long seconds = (now.getTime()-lastAdded.getTime())/1000;
         currentBlock.duration = (int)seconds;
-        Logger.getGlobal().info("Found new block! (height: " + log.size() + ", tx num = " + currentBlock.number + ")");
+        Logger.getGlobal().info("Found new block! (height: " + log.size() + ", tx num = " + currentBlock.number + ", duration = " + seconds + ")");
 
         if(log.size()>0)
             currentBlock.prevBlock = (Block) log.get(log.size()-1);
@@ -77,7 +79,6 @@ public class Blockchain {
 
         dd.addBlock(log.size(), currentBlock.number, currentBlock.duration, currentBlock);
 
-        Logger.getGlobal().info("Add - POW: " + currentBlock.number + ", Total: " + currentBlock.total + ", Duration: " + currentBlock.duration + ")");
 
         currentBlock = new Block();
         lastAdded = new Date();
@@ -92,116 +93,71 @@ public class Blockchain {
         You furthermore are only allowed to use the information in the Block objects stored in the Blockchain array called log.
         Performance and storage must be in O(1) regardless of the length of the blockchain.
          */
-        
-    static int POW_RETARGET_DEPTH = 20;
+
     static int WE_WANT_X_POW_PER_MINUTE = 10;
     private static void retarget() {
-        // here, retarget the target value!!!
-        int powcnt = 0;
-        double nTargetTimespan = 0;
-        double nActualTimespan = 0;
+
+        if(log.size()<=1) {
+            Logger.getGlobal().info("skipping retarget for first block");
+            return;
+        }
+
         long powTarget = 0;
+        int currentBlockHeight = log.size()-1; // the starting block height for analysis
+        int nActualTimespan = ((Block) log.get(currentBlockHeight)).duration;;
+        int nActualPows = ((Block) log.get(currentBlockHeight)).number;
+        long targetForThisBlock = ((Block) log.get(currentBlockHeight)).prevBlock.target;
+        double nTargetTimespan = 0;
+        double ratio = 0;
+        if (nActualTimespan < 60*0.5 || nActualTimespan > 60*1.5){ // For too short blocks, let us just leave the target untouched
+            powTarget = targetForThisBlock;
+        }else {
 
-        int powMass = 0;
-        int totalDuration = 0;
-        long targetMass = 0;
-        int logDepth = 0;
-        int curBlockIdx = log.size()-1;
+            nTargetTimespan = (nActualPows * 60) / WE_WANT_X_POW_PER_MINUTE;
+            ratio = nActualTimespan / nTargetTimespan;
+            if (((Block) log.get(log.size() - 1)).number == 25) {
+                // if cap was hit, allow drastic changes
+                if (ratio < 0.10) ratio = 0.10;
+                else if (ratio > 1.9) ratio = 1.9;
+            }else if(((Block) log.get(log.size() - 1)).number == 0){
 
-        if(curBlockIdx < POW_RETARGET_DEPTH)
-            logDepth = logDepth = Math.min(curBlockIdx, POW_RETARGET_DEPTH);
-        else
-            logDepth = POW_RETARGET_DEPTH;
+                // count number of shitblocks
+                int cntzero = 0;
+                Block c = ((Block) log.get(currentBlockHeight));
+                while(c.prevBlock != null){
+                    if(c.number!=0) break;
+                    cntzero++;
+                }
 
-        Logger.getGlobal().info("depth = " + logDepth );
-
-        int numBlocks = 1;
-
-        if(curBlockIdx == 0) {
-            powMass = ((Block)log.get(0)).total;
-            totalDuration = ((Block)log.get(0)).duration;
-            targetMass = ((Block)log.get(0)).target;
-            Logger.getGlobal().info("First Block - POWs = " +((Block)log.get(0)).total + ", Duration = " + ((Block)log.get(0)).duration + ", target = " + ((Block)log.get(0)).target );
-        }
-        else {
-            for(int i = curBlockIdx; i >= (curBlockIdx + 1 - logDepth); --i) {
-                powMass += ((Block)log.get(i)).total;
-                totalDuration += ((Block)log.get(i)).duration;
-
-                targetMass =+ ((Block)log.get(i - 1)).target;
-
-                Logger.getGlobal().info("i = " + i + ", POWs = " +((Block)log.get(i)).total + ", Duration = " + ((Block)log.get(i)).duration + ", target = " + ((Block)log.get(i - 1)).target );
+                // slowly rise, no need to rush things but accelerate faster up the longer we stay at zero
+                ratio=Math.min(1.9,ratio*(1.0+0.05*cntzero));
+            } else {
+                // Otherwise be conservative
+                // But take care, 20% means 34% up again
+                if (ratio < 0.85) ratio = 0.85;
+                else if (ratio > 1.19) ratio = 1.19;
             }
+            powTarget = (long) (targetForThisBlock * ratio);
         }
-
-        if(powMass==0) powMass = 1;
-
-        long avgTarget = targetMass / numBlocks;
-
-        double curPowSecs = ((double)((Block)log.get(curBlockIdx)).duration / (double)((Block)log.get(curBlockIdx)).total);
-        double avgPowSecs = ((double)totalDuration / (double)powMass);
-        double tgtPowSecs = 60.0 / (double)(WE_WANT_X_POW_PER_MINUTE);
-
-        long curTarget = 0;
-        long newTarget = 0;
-        long newAvgTgt = 0;
-        long newCurTgt = 0;
-
-        if (curBlockIdx == 0)
-            curTarget = ((Block)(log.get(curBlockIdx))).target;
-        else
-            curTarget = ((Block)(log.get(curBlockIdx - 1))).target;
-
-        // If Difficulty Is Within 5% Of Target, Keep Using It
-        if ((curPowSecs <= (tgtPowSecs * 1.05)) && (curPowSecs >= (tgtPowSecs * 0.95))) {
-            newTarget = curTarget;
-            Logger.getGlobal().info("Keep Last Target: " + newTarget);
-        }
-
-        // Determine If It's Better To Use Adj Average Diff, or Adj Current Diff
-        else {
-            newAvgTgt = (long)((double)avgTarget * (avgPowSecs / tgtPowSecs));
-            newCurTgt = (long)((double)curTarget * (curPowSecs / tgtPowSecs));
-
-            if (curPowSecs > tgtPowSecs) {
-                if (newAvgTgt < curTarget)
-                    newTarget = newCurTgt;
-                else
-                    newTarget = newAvgTgt;
-            }
-            else {
-                if (newAvgTgt > curTarget)
-                    newTarget = newCurTgt;
-                else
-                    newTarget = newAvgTgt;
-            }
-        }
-
-        powTarget = newTarget;
-
-        Logger.getGlobal().info("Cur POW(sec) = " + curPowSecs + ", Avg POW(sec) = " + avgPowSecs + ", Tgt POW(sec) = " + tgtPowSecs);
-        Logger.getGlobal().info("Cur Tgt = " + curTarget + ", Avg Tgt = " + avgTarget + ", New Tgt = " + newTarget);
-
 
         BigInteger myTarget = MAXIMAL_WORK_TARGET;
-        myTarget = myTarget.divide(BigInteger.valueOf(Long.MAX_VALUE/100)); // Note, our target in compact form is in range 1..LONG_MAX/100
+        myTarget = myTarget.divide(BigInteger.valueOf(Long.MAX_VALUE/10000));
         myTarget = myTarget.multiply(BigInteger.valueOf(powTarget));
         if(myTarget.compareTo(MAXIMAL_WORK_TARGET) == 1)
             myTarget = MAXIMAL_WORK_TARGET;
-        if(myTarget.compareTo(BigInteger.ONE) == 2)
+        if(myTarget.compareTo(BigInteger.ONE) == -1)
             myTarget = BigInteger.ONE;
-        ((Block)(log.get(curBlockIdx))).target = powTarget;
+
+
+
+        ((Block)(log.get(log.size()-1))).target = powTarget;
 
         CURRENT = myTarget;
-        Logger.getGlobal().info("new minimal target = " + myTarget.toString(16) + ", powT = " + powTarget + ", lastpowT = " +  targetMass + ", #blocks = " + log.size() + ", powMass = " + powMass + ", actTime = " + nActualTimespan + ", targetTime = " + nTargetTimespan + ", adjRatio = " + (nActualTimespan/nTargetTimespan));
+        Logger.getGlobal().info("new minimal target = " + myTarget.toString(16) + ", thisTarget = " + targetForThisBlock + ", newT = " + powTarget + ", actTime = " + nActualTimespan + ", targetTime = " + nTargetTimespan + ", adjRatio = " + ratio);
 
-
-        for(int i = curBlockIdx; i >= (curBlockIdx + 1 - logDepth); --i) {
-            Logger.getGlobal().info("ii = " + i + ", target = " + ((Block)log.get(i)).target );
-        }
     }
 
-        /* End of editing section
-         */
-        
+    /* End of editing section */
+
 }
+
