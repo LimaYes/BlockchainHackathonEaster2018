@@ -94,69 +94,59 @@ public class Blockchain {
         Performance and storage must be in O(1) regardless of the length of the blockchain.
          */
 
-    static int WE_WANT_X_POW_PER_MINUTE = 10;
-    private static void retarget() {
-
-        if(log.size()<=1) {
-            Logger.getGlobal().info("skipping retarget for first block");
-            return;
-        }
-
-        long powTarget = 0;
-        int currentBlockHeight = log.size()-1; // the starting block height for analysis
-        int nActualTimespan = ((Block) log.get(currentBlockHeight)).duration;;
-        int nActualPows = ((Block) log.get(currentBlockHeight)).number;
-        long targetForThisBlock = ((Block) log.get(currentBlockHeight)).prevBlock.target;
-        double nTargetTimespan = 0;
-        double ratio = 0;
-        if (nActualTimespan < 60*0.5 || nActualTimespan > 60*1.5){ // For too short blocks, let us just leave the target untouched
-            powTarget = targetForThisBlock;
-        }else {
-
-            nTargetTimespan = (nActualPows * 60) / WE_WANT_X_POW_PER_MINUTE;
-            ratio = nActualTimespan / nTargetTimespan;
-            if (((Block) log.get(log.size() - 1)).number == 25) {
-                // if cap was hit, allow drastic changes
-                if (ratio < 0.10) ratio = 0.10;
-                else if (ratio > 1.9) ratio = 1.9;
-            }else if(((Block) log.get(log.size() - 1)).number == 0){
-
-                // count number of shitblocks
-                int cntzero = 0;
-                Block c = ((Block) log.get(currentBlockHeight));
-                while(c.prevBlock != null){
-                    if(c.number!=0) break;
-                    cntzero++;
-                }
-
-                // slowly rise, no need to rush things but accelerate faster up the longer we stay at zero
-                ratio=Math.min(1.9,ratio*(1.0+0.05*cntzero));
-            } else {
-                // Otherwise be conservative
-                // But take care, 20% means 34% up again
-                if (ratio < 0.85) ratio = 0.85;
-                else if (ratio > 1.19) ratio = 1.19;
+        static int WE_WANT_X_POW_PER_MINUTE = 10;
+        private static void retarget() {
+    
+            if(log.size()<=1) {
+                Logger.getGlobal().info("skipping retarget for first block");
+                return;
             }
-            powTarget = (long) (targetForThisBlock * ratio);
+    
+            long powTarget = 0;
+            int currentBlockHeight = log.size()-1; // the starting block height for analysis
+            int nActualTimespan = ((Block) log.get(currentBlockHeight)).duration;;
+            int nActualPows = ((Block) log.get(currentBlockHeight)).number;
+            long targetForThisBlock = ((Block) log.get(currentBlockHeight)).prevBlock.target;
+            double nTargetTimespan = 0;
+            double ratio = 0;
+            if (nActualTimespan < 60*0.25){ // For too short blocks, let us just leave the target untouched
+               powTarget = targetForThisBlock;
+            }else {
+    
+                nTargetTimespan = (nActualPows * 60) / WE_WANT_X_POW_PER_MINUTE;
+                ratio = nActualTimespan / nTargetTimespan;
+    
+                if (((Block) log.get(log.size() - 1)).number == 25) {
+                    // if cap was hit, allow drastic changes
+                    if (ratio < 0.10) ratio = 0.10;
+                    else if (ratio > 1.9) ratio = 1.9;
+                } else {
+                    // Otherwise be conservative
+                    // But take care, 20% means 34% up again
+                    if (ratio < 0.75) ratio = 0.75;
+                    else if (ratio > 1.34) ratio = 1.34;
+                }
+    
+                powTarget = (long) (targetForThisBlock * ratio);
+            }
+    
+            BigInteger myTarget = MAXIMAL_WORK_TARGET;
+            myTarget = myTarget.divide(BigInteger.valueOf(Long.MAX_VALUE/10000)); // Note, our target in compact form is in range 1..LONG_MAX/100
+            myTarget = myTarget.multiply(BigInteger.valueOf(powTarget));
+            if(myTarget.compareTo(MAXIMAL_WORK_TARGET) == 1)
+                myTarget = MAXIMAL_WORK_TARGET;
+            if(myTarget.compareTo(BigInteger.ONE) == 2)
+                myTarget = BigInteger.ONE;
+    
+    
+    
+            ((Block)(log.get(log.size()-1))).target = powTarget;
+    
+            CURRENT = myTarget;
+            Logger.getGlobal().info("new minimal target = " + myTarget.toString(16) + ", thisTarget = " + targetForThisBlock + ", newT = " + powTarget + ", actTime = " + nActualTimespan + ", targetTime = " + nTargetTimespan + ", adjRatio = " + ratio);
+    
         }
-
-        BigInteger myTarget = MAXIMAL_WORK_TARGET;
-        myTarget = myTarget.divide(BigInteger.valueOf(Long.MAX_VALUE/10000));
-        myTarget = myTarget.multiply(BigInteger.valueOf(powTarget));
-        if(myTarget.compareTo(MAXIMAL_WORK_TARGET) == 1)
-            myTarget = MAXIMAL_WORK_TARGET;
-        if(myTarget.compareTo(BigInteger.ONE) == -1)
-            myTarget = BigInteger.ONE;
-
-
-
-        ((Block)(log.get(log.size()-1))).target = powTarget;
-
-        CURRENT = myTarget;
-        Logger.getGlobal().info("new minimal target = " + myTarget.toString(16) + ", thisTarget = " + targetForThisBlock + ", newT = " + powTarget + ", actTime = " + nActualTimespan + ", targetTime = " + nTargetTimespan + ", adjRatio = " + ratio);
-
-    }
-
+    
     /* End of editing section */
 
 }
